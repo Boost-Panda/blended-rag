@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# custom ignore
+requirements_old.txt
+venv-rag
 # Distribution / packaging
 .Python
 build/

@@ -7,7 +7,10 @@ from fastapi import FastAPI, File, UploadFile
 from data_loader import DataLoader
 from data_retriever import DataRetriever
 from models import TextData
+from models import URLData
 from response_generator import ResponseGenerator
+
+from crawler import parse_url_and_get_text
 
 load_dotenv()
 
@@ -56,6 +59,17 @@ async def upload_text_file(file: UploadFile):
 @app.post("/create_embeddings/")
 async def create_embeddings_from_text(data: TextData):
     text = data.text
+    # add data to the knowledge base
+    data_loader.save_embeddings_and_documents(text)
+
+    return {"message": "Embeddings created successfully", "success": True}
+
+
+# endpoint to create embeddings from the URL
+@app.post("/create_embeddings_from_url/")
+async def create_embeddings_from_url(data: URLData):
+    url = data.url
+    text = parse_url_and_get_text(url)
     # add data to the knowledge base
     data_loader.save_embeddings_and_documents(text)
 
