@@ -67,21 +67,27 @@ class DataLoader:
         return chunks
 
     # Function to read a text file, chunk it, and create embeddings for each chunk
-    def save_embeddings_and_documents(self, text):
-
+    def save_embeddings_and_documents(self, text, pinecone_index_name, es_index_name):
+        
+        if pinecone_index_name != "" and es_index_name != "":
+            pinecone_index = self.pc.Index(pinecone_index_name)
+        else:
+            es_index_name = self.es_index_name
+            pinecone_index = self.pinecone_index
+        
         chunks = self.chunk_text(text)
         for i, chunk in enumerate(chunks):
 
             # Pinecone Index
             embeddings = self.create_embeddings(chunk)
             chunk_id = f"chunk-{uuid.uuid4()}"
-            self.pinecone_index.upsert([(chunk_id, embeddings)])
+            pinecone_index.upsert([(chunk_id, embeddings)])
             print(f"Stored embeddings and documents for chunk {i+1}/{len(chunks)}")
 
             # Elasticsearch index
             actions = [
                 {
-                    "_index": self.es_index_name,
+                    "_index": es_index_name,
                     "_id": chunk_id,
                     "_source": {
                         "content": chunk,

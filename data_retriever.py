@@ -15,10 +15,10 @@ class DataRetriever:
         self.es = Elasticsearch(os.getenv("ELASTICSEARCH_URL"))
         self.es_index_name = es_index_name
 
-        pc = Pinecone(api_key=pinecone_api_key, environment="us-west1-gcp")
+        self.pc = Pinecone(api_key=pinecone_api_key, environment="us-west1-gcp")
         self.pinecone_index_name = pinecone_index_name
 
-        self.pinecone_index = pc.Index(self.pinecone_index_name)
+        self.pinecone_index = self.pc.Index(self.pinecone_index_name)
 
         # initialize OpenAI API
         openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -29,10 +29,17 @@ class DataRetriever:
         embeddings = response.data[0].embedding
         return embeddings
 
-    def blended_retrieval(self, query, top_k=3):
+    def blended_retrieval(self, query, pinecone_index_name, es_index_name, top_k=3):
+        
+        if pinecone_index_name != "" and es_index_name != "":
+            pinecone_index = self.pc.Index(pinecone_index_name)
+        else:
+            pinecone_index = self.pinecone_index
+            es_index_name = self.es_index_name
+        
         # Step 1: BM25 keyword search in Elasticsearch
         bm25_results = self.es.search(
-            index=self.es_index_name,
+            index=es_index_name,
             body={"query": {"match": {"content": query}}, "size": top_k},
         )
         bm25_docs = [hit["_source"]["content"] for hit in bm25_results["hits"]["hits"]]
@@ -40,7 +47,7 @@ class DataRetriever:
 
         # Step 2: Dense vector search in Pinecone
         query_embeddings = self.create_embeddings(query)
-        dense_results = self.pinecone_index.query(
+        dense_results = pinecone_index.query(
             vector=query_embeddings, top_k=top_k, include_values=True
         )
         matched_chunks = [match["id"] for match in dense_results["matches"]]

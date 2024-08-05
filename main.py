@@ -59,8 +59,13 @@ async def upload_text_file(file: UploadFile):
 @app.post("/create_embeddings/")
 async def create_embeddings_from_text(data: TextData):
     text = data.text
+    pinecone_index_name = data.pinecone_index_name
+    elastic_index_name = data.elastic_index_name
+
     # add data to the knowledge base
-    data_loader.save_embeddings_and_documents(text)
+    data_loader.save_embeddings_and_documents(
+        text, pinecone_index_name, elastic_index_name
+    )
 
     return {"message": "Embeddings created successfully", "success": True}
 
@@ -80,7 +85,12 @@ async def create_embeddings_from_url(data: URLData):
 @app.post("/query_data/")
 async def query_data(data: TextData):
     query = data.text
-    context = data_retriever.blended_retrieval(query)
+    pinecone_index_name = data.pinecone_index_name
+    elastic_index_name = data.elastic_index_name
+
+    context = data_retriever.blended_retrieval(
+        query, pinecone_index_name, elastic_index_name
+    )
     results = response_generator.generate_response(query, context)
     return {"results": results, "success": True}
 
