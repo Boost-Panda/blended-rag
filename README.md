@@ -48,6 +48,23 @@ ELASTICSEARCH_INDEX_NAME=<your-elasticsearch-index-name>
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
+
+## Run via Docker
+1. Clone the repository:
+```bash
+git clone https://github.com/Boost-Panda/blended-rag.git
+```
+
+2. Build the image
+```
+docker build -t blendedrag .
+```
+
+3. Run the app via image
+```
+docker run -p 8000:8000 blendedrag
+```
+
 ## Usage
 -----
 
