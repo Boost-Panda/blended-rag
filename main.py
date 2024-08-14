@@ -2,7 +2,10 @@ import os
 
 # load the environment variables
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Header, HTTPException
+from gotrue.errors import AuthApiError 
+from supabase import create_client, Client
+
 
 from data_loader import DataLoader
 from data_retriever import DataRetriever
@@ -18,9 +21,11 @@ es_index_name = os.getenv("ELASTICSEARCH_INDEX_NAME")
 pinecone_index_name = os.getenv("PINECONE_INDEX_NAME")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 openai_api_key = os.getenv("OPENAI_API_KEY")
-
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_ANON_KEY")
 # create a FastAPI app
 app = FastAPI()
+client = create_client(supabase_url, supabase_key)
 
 # initialize the components
 # data loader is used to load data into Elasticsearch and Pinecone
@@ -55,18 +60,41 @@ async def upload_text_file(file: UploadFile):
     return {"message": "Embeddings created successfully", "success": True}
 
 
+# Function to authenticate the access token
+async def authenticate_request(access_token: str):
+    try:
+        # Attempt to retrieve the user with the provided access token
+        response = client.auth.get_user(access_token)
+        return response.user
+    except AuthApiError as e:
+        # If there's an AuthApiError, raise a 401 Unauthorized exception
+        raise HTTPException(status_code=401, detail="Invalid or expired access token")
+
+# Function to fetch index names from Supabase
+async def get_index_names(user_id: str, project_id: str):
+    response = client.table('projects').select('pinecone_index_name', 'elastic_index_name').eq('id', project_id).eq('user_id', user_id).execute()
+    data = response.data
+    # Check if the data array is empty
+    if not data or len(data) == 0:
+        raise HTTPException(status_code=404, detail="Project not found or unauthorized")
+    # Extract the first dictionary from the data list
+    project_data = data[0]
+    return project_data['pinecone_index_name'], project_data['elastic_index_name']
+
 # endpoint to create embeddings for the text
 @app.post("/create_embeddings/")
-async def create_embeddings_from_text(data: TextData):
+async def create_embeddings_from_text(data: TextData, access_token: str = Header(...)):
+     # Authenticate the user using the access token
+    print(data)
     text = data.text
-    pinecone_index_name = data.pinecone_index_name
-    elastic_index_name = data.elastic_index_name
-
+    project_id= data.project_id
+    user = await authenticate_request(access_token)
+    user_id = user.id
+    pinecone_index_name, elastic_index_name = await get_index_names(user_id, project_id)
     # add data to the knowledge base
     data_loader.save_embeddings_and_documents(
         text, pinecone_index_name, elastic_index_name
     )
-
     return {"message": "Embeddings created successfully", "success": True}
 
 
