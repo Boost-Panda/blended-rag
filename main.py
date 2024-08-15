@@ -2,7 +2,7 @@ import os
 
 # load the environment variables
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, UploadFile, Header, HTTPException
+from fastapi import FastAPI, File, UploadFile, Header, Form, HTTPException
 from gotrue.errors import AuthApiError 
 from supabase import create_client, Client
 
@@ -69,15 +69,14 @@ async def get_index_names(user_id: str, project_id: str):
 
 # endpoint to upload a text file and create embeddings for the text
 @app.post("/create_embeddings_via_text_file/")
-async def upload_text_file(file: UploadFile, access_token: str = Header(...)):
+async def upload_text_file(file: UploadFile, project_id: str = Form(...), access_token: str = Header(...)):
     text = await file.read()  # Read the file content
     text = text.decode("utf-8")
-    project_id= data.project_id
     user = await authenticate_request(access_token)
     user_id = user.id
     pinecone_index_name, elastic_index_name = await get_index_names(user_id, project_id)
     # add data to the knowledge base
-    data_loader.save_embeddings_and_documents(text,pinecone_index_name, elastic_index_name)
+    data_loader.save_embeddings_and_documents(text, pinecone_index_name, elastic_index_name)
 
     # return success message along with the status code
     return {"message": "Embeddings created successfully", "success": True}
