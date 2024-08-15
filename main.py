@@ -46,20 +46,6 @@ data_retriever = DataRetriever(
 # response generator is used to generate responses using OpenAI
 response_generator = ResponseGenerator(openai_api_key)
 
-
-# endpoint to upload a text file and create embeddings for the text
-@app.post("/create_embeddings_via_text_file/")
-async def upload_text_file(file: UploadFile):
-    text = await file.read()  # Read the file content
-    text = text.decode("utf-8")
-
-    # add data to the knowledge base
-    data_loader.save_embeddings_and_documents(text)
-
-    # return success message along with the status code
-    return {"message": "Embeddings created successfully", "success": True}
-
-
 # Function to authenticate the access token
 async def authenticate_request(access_token: str):
     try:
@@ -81,11 +67,26 @@ async def get_index_names(user_id: str, project_id: str):
     project_data = data[0]
     return project_data['pinecone_index_name'], project_data['elastic_index_name']
 
+# endpoint to upload a text file and create embeddings for the text
+@app.post("/create_embeddings_via_text_file/")
+async def upload_text_file(file: UploadFile, access_token: str = Header(...)):
+    text = await file.read()  # Read the file content
+    text = text.decode("utf-8")
+    project_id= data.project_id
+    user = await authenticate_request(access_token)
+    user_id = user.id
+    pinecone_index_name, elastic_index_name = await get_index_names(user_id, project_id)
+    # add data to the knowledge base
+    data_loader.save_embeddings_and_documents(text,pinecone_index_name, elastic_index_name)
+
+    # return success message along with the status code
+    return {"message": "Embeddings created successfully", "success": True}
+
+
 # endpoint to create embeddings for the text
 @app.post("/create_embeddings/")
 async def create_embeddings_from_text(data: TextData, access_token: str = Header(...)):
      # Authenticate the user using the access token
-    print(data)
     text = data.text
     project_id= data.project_id
     user = await authenticate_request(access_token)
@@ -111,10 +112,12 @@ async def create_embeddings_from_url(data: URLData):
 
 # endpoint to query the data
 @app.post("/query_data/")
-async def query_data(data: TextData):
+async def query_data(data: TextData, access_token: str = Header(...)):
     query = data.text
-    pinecone_index_name = data.pinecone_index_name
-    elastic_index_name = data.elastic_index_name
+    project_id= data.project_id
+    user = await authenticate_request(access_token)
+    user_id = user.id
+    pinecone_index_name, elastic_index_name = await get_index_names(user_id, project_id)
 
     context = data_retriever.blended_retrieval(
         query, pinecone_index_name, elastic_index_name
