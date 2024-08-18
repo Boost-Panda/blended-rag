@@ -11,3 +11,9 @@ class TextData(BaseModel):
 
 class URLData(BaseModel):
     url: str
+
+
+# model for receiving the image document
+class ImageDocument(BaseModel):
+    # dict
+    image_doc: dict

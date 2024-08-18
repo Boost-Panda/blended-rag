@@ -8,7 +8,13 @@ from data_loader import DataLoader
 from data_retriever import DataRetriever
 from models import TextData
 from models import URLData
+from models import ImageDocument
 from response_generator import ResponseGenerator
+
+from baygata import (
+    get_matched_embeddings,
+    save_embeddings_and_documents,
+)
 
 from crawler import parse_url_and_get_text
 
@@ -93,6 +99,27 @@ async def query_data(data: TextData):
     )
     results = response_generator.generate_response(query, context)
     return {"results": results, "success": True}
+
+
+# create an endpoint for creating embedding for the image document
+@app.post("/create_embeddings_from_image/")
+async def create_embeddings_from_image(data: ImageDocument):
+    image_doc = data.image_doc
+    chunk_id = save_embeddings_and_documents(image_doc, image_doc.get("_id"))
+    return {
+        "message": "Embeddings created successfully",
+        "chunk_id": chunk_id,
+        "success": True,
+    }
+
+
+# query image embeddings
+@app.post("/query_embeddings_for_images/")
+async def query_embeddings(data: TextData):
+    query = data.text
+    top_k = 5
+    dense_results = get_matched_embeddings(query, top_k)
+    return {"results": dense_results, "success": True}
 
 
 # delete all the indexes
