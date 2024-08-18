@@ -104,7 +104,10 @@ async def query_data(data: TextData):
 # create an endpoint for creating embedding for the image document
 @app.post("/create_embeddings_from_image/")
 async def create_embeddings_from_image(data: ImageDocument):
+    print("Receive Image Document")
+    print("Data", data)
     image_doc = data.image_doc
+    print("Image Document", image_doc)
     chunk_id = save_embeddings_and_documents(image_doc, image_doc.get("_id"))
     return {
         "message": "Embeddings created successfully",

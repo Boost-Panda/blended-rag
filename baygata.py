@@ -34,14 +34,14 @@ def conv_image_doc_to_text(image_doc):
     text = ""
     for keyname in keynames:
         # save key and value
-        text += keyname + ": " + image_doc.get(keyname, "") + "\n"
+        text += keyname + ": " + image_doc.get("analysis", {}).get(keyname, "") + "\n"
     return text
 
 
 def save_embeddings_and_documents(_doc, chunk_id):
     try:
         text = conv_image_doc_to_text(_doc)
-
+        print("Indexing text into the pinecone", text)
         embeddings = create_embeddings(str(text))
         chunk_id = f"chunk-{chunk_id}"
 
@@ -51,9 +51,11 @@ def save_embeddings_and_documents(_doc, chunk_id):
         # Elasticsearch index
         print(f"Indexing document in Elasticsearch")
         print(_doc)
-        
+
         # deleting _id from the document
-        del _doc["_id"]
+        if "_id" in _doc:
+            del _doc["_id"]
+
         actions = [{"_index": es_index_name_baygata, "_id": chunk_id, "_source": _doc}]
         helpers.bulk(es, actions)
         return chunk_id
