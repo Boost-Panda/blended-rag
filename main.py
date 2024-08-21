@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, File, UploadFile, Header, Form, HTTPException
 from gotrue.errors import AuthApiError 
 from supabase import create_client, Client
-
+from fastapi.middleware.cors import CORSMiddleware
 
 from data_loader import DataLoader
 from data_retriever import DataRetriever
@@ -25,6 +25,13 @@ supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_ANON_KEY")
 # create a FastAPI app
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Change this to a list of allowed origins
+    allow_credentials=True,
+    allow_methods=["*"],  # You can restrict this to specific methods like ['GET', 'POST']
+    allow_headers=["*"],  # You can restrict this to specific headers like ['Authorization', 'Content-Type']
+)
 client = create_client(supabase_url, supabase_key)
 
 # initialize the components
