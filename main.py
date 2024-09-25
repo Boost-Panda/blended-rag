@@ -11,6 +11,7 @@ from data_loader import DataLoader
 from data_retriever import DataRetriever
 from models import TextData
 from models import URLData
+from models import CreateData
 from response_generator import ResponseGenerator
 
 from crawler import parse_url_and_get_text
@@ -36,18 +37,18 @@ client = create_client(supabase_url, supabase_key)
 
 # initialize the components
 # data loader is used to load data into Elasticsearch and Pinecone
-data_loader = DataLoader(
-    es_index_name=es_index_name,
-    pinecone_index_name=pinecone_index_name,
-    pinecone_api_key=pinecone_api_key,
-)
+# data_loader = DataLoader(
+#     es_index_name=es_index_name,
+#     pinecone_index_name=pinecone_index_name,
+#     pinecone_api_key=pinecone_api_key,
+# )
 
-# data retriever is used to retrieve data from Elasticsearch and Pinecone
-data_retriever = DataRetriever(
-    es_index_name=es_index_name,
-    pinecone_index_name=pinecone_index_name,
-    pinecone_api_key=pinecone_api_key,
-)
+# # data retriever is used to retrieve data from Elasticsearch and Pinecone
+# data_retriever = DataRetriever(
+#     es_index_name=es_index_name,
+#     pinecone_index_name=pinecone_index_name,
+#     pinecone_api_key=pinecone_api_key,
+# )
 
 
 # response generator is used to generate responses using OpenAI
@@ -140,7 +141,26 @@ async def delete_indexes():
 
 
 # create all the indexes
-@app.get("/create_indexes/")
-async def create_indexes():
-    data_loader.create_indexes()
-    return {"message": "Indexes created successfully", "success": True}
+@app.post("/create_indexes/")
+async def create_indexes(data: CreateData):
+    try:
+        uuid = data.uuid
+        es_index_name = uuid + "_es_idx"
+        pinecone_index_name = uuid + "_pc_idx"
+        
+        # Initialize DataLoader with the provided index names
+        data_loader = DataLoader(
+            es_index_name=es_index_name,
+            pinecone_index_name=pinecone_index_name,
+            pinecone_api_key=pinecone_api_key,
+        )
+        
+        # Attempt to create indexes
+        data_loader.create_indexes()
+        return {"message": "Indexes created successfully", "success": True}
+    
+    except Exception as e:
+        # Raise an HTTP 500 exception with the error message
+        error_response = json.loads(str(e).split('HTTP response body: ')[-1])
+        error_message = error_response.get('error', {}).get('message', 'An error occurred')
+        raise HTTPException(status_code=500, detail=f"Error while creating indexes: {str(error_message)}")

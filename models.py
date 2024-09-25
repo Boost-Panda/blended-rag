@@ -11,3 +11,6 @@ class TextData(BaseModel):
 
 class URLData(BaseModel):
     url: str
+
+class CreateData(BaseModel):
+    uuid: str

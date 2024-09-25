@@ -14,6 +14,8 @@ class DataLoader:
         pinecone_index_name,
         pinecone_api_key,
     ):
+        print("asdasdsad",es_index_name,
+        pinecone_index_name,)
         self.es = Elasticsearch(
             os.getenv("ELASTICSEARCH_URL"), timeout=30, max_retries=10
         )
