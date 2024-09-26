@@ -117,3 +117,4 @@ class DataLoader:
         )
 
         self.es.indices.create(index=self.es_index_name, ignore=400)
+        

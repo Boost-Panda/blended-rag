@@ -1,5 +1,5 @@
 import os
-
+import json
 # load the environment variables
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, UploadFile, Header, Form, HTTPException
@@ -135,9 +135,22 @@ async def query_data(data: TextData, access_token: str = Header(...)):
 
 # delete all the indexes
 @app.get("/delete_indexes/")
-async def delete_indexes():
-    data_loader.delete_indexes()
-    return {"message": "Indexes deleted successfully", "success": True}
+async def delete_indexes(data: CreateData):
+    try:
+        uuid = data.uuid
+        es_index_name = uuid + "-es-idx"
+        pinecone_index_name = uuid + "-pc-idx"
+        data_loader = DataLoader(
+                es_index_name=es_index_name,
+                pinecone_index_name=pinecone_index_name,
+                pinecone_api_key=pinecone_api_key,
+            )
+        data_loader.delete_indexes()
+        return {"message": "Indexes deleted successfully", "success": True}
+    except Exception as e:
+        print(type(e))    # the exception type
+        print(e.args) 
+        raise HTTPException(status_code=500, detail=f"Error while creating indexes: {str(e)}")
 
 
 # create all the indexes
@@ -145,9 +158,8 @@ async def delete_indexes():
 async def create_indexes(data: CreateData):
     try:
         uuid = data.uuid
-        es_index_name = uuid + "_es_idx"
-        pinecone_index_name = uuid + "_pc_idx"
-        
+        es_index_name = uuid + "-es-idx"
+        pinecone_index_name = uuid + "-pc-idx"
         # Initialize DataLoader with the provided index names
         data_loader = DataLoader(
             es_index_name=es_index_name,
@@ -158,9 +170,8 @@ async def create_indexes(data: CreateData):
         # Attempt to create indexes
         data_loader.create_indexes()
         return {"message": "Indexes created successfully", "success": True}
-    
     except Exception as e:
-        # Raise an HTTP 500 exception with the error message
-        error_response = json.loads(str(e).split('HTTP response body: ')[-1])
-        error_message = error_response.get('error', {}).get('message', 'An error occurred')
-        raise HTTPException(status_code=500, detail=f"Error while creating indexes: {str(error_message)}")
+        error_details = json.loads(e.body)
+        message=error_details.get('error', {}).get('message', "Unknown error")
+        raise HTTPException(status_code=400,detail=message)
+
