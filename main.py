@@ -21,6 +21,11 @@ from baygata import (
 
 from crawler import parse_url_and_get_text
 
+from pymongo import MongoClient
+
+client = MongoClient(os.getenv("MONGODB_URI"))
+db = client[os.getenv("MONGODB_DB")]
+
 load_dotenv()
 
 es_index_name = os.getenv("ELASTICSEARCH_INDEX_NAME")
@@ -89,6 +94,14 @@ async def get_index_names(user_id: str, project_id: str):
     return project_data["pinecone_index_name"], project_data["elastic_index_name"]
 
 
+async def get_index_names_no_auth(project_id: str):
+    response = db["projects"].find_one({"id": project_id})
+
+    if not response:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return response["pinecone_index_name"], response["elastic_index_name"]
+
+
 # endpoint to upload a text file and create embeddings for the text
 @app.post("/create_embeddings_via_text_file/")
 async def upload_text_file(file: UploadFile, project_id: str = Form(...), access_token: str = Header(...)):
@@ -104,6 +117,16 @@ async def upload_text_file(file: UploadFile, project_id: str = Form(...), access
     return {"message": "Embeddings created successfully", "success": True}
 
 
+@app.post("/create_embeddings_via_text_file_no_auth")
+async def create_embeddings_via_text_file_no_auth(file: UploadFile):
+    text = await file.read()
+    text = text.decode("utf-8")
+    pinecone_index_name = os.getenv("PINECONE_INDEX_NAME")
+    elastic_index_name = os.getenv("ELASTICSEARCH_INDEX_NAME")
+    data_loader.save_embeddings_and_documents(text, pinecone_index_name, elastic_index_name)
+    return {"message": "Embeddings created successfully", "success": True}
+
+
 # endpoint to create embeddings for the text
 @app.post("/create_embeddings/")
 async def create_embeddings_from_text(data: TextData, access_token: str = Header(...)):
@@ -114,6 +137,17 @@ async def create_embeddings_from_text(data: TextData, access_token: str = Header
     user_id = user.id
     pinecone_index_name, elastic_index_name = await get_index_names(user_id, project_id)
     # add data to the knowledge base
+    data_loader.save_embeddings_and_documents(text, pinecone_index_name, elastic_index_name)
+    return {"message": "Embeddings created successfully", "success": True}
+
+
+@app.post("/create_embeddings_no_auth/")
+async def create_embeddings_from_text_no_auth(data: TextData):
+    text = data.text
+    project_id = data.project_id
+    pinecone_index_name = os.getenv("PINECONE_INDEX_NAME")
+    elastic_index_name = os.getenv("ELASTICSEARCH_INDEX_NAME")
+    # pinecone_index_name, elastic_index_name = await get_index_names_no_auth(project_id)
     data_loader.save_embeddings_and_documents(text, pinecone_index_name, elastic_index_name)
     return {"message": "Embeddings created successfully", "success": True}
 
@@ -138,6 +172,17 @@ async def query_data(data: TextData, access_token: str = Header(...)):
     user_id = user.id
     pinecone_index_name, elastic_index_name = await get_index_names(user_id, project_id)
 
+    context = data_retriever.blended_retrieval(query, pinecone_index_name, elastic_index_name)
+    results = response_generator.generate_response(query, context)
+    return {"results": results, "success": True}
+
+
+@app.post("/query_data_no_auth/")
+async def query_data_no_auth(data: TextData):
+    query = data.text
+    # pinecone_index_name, elastic_index_name = await get_index_names_no_auth(project_id)
+    pinecone_index_name = os.getenv("PINECONE_INDEX_NAME")
+    elastic_index_name = os.getenv("ELASTICSEARCH_INDEX_NAME")
     context = data_retriever.blended_retrieval(query, pinecone_index_name, elastic_index_name)
     results = response_generator.generate_response(query, context)
     return {"results": results, "success": True}
