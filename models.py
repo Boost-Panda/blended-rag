@@ -7,7 +7,10 @@ class TextData(BaseModel):
     pinecone_index_name: str = ""
     # optional elastic index name
     elastic_index_name: str = ""
-    
+    # optional id, default is uuid
+    id: str = ""
+    ids_to_exclude: list[str] = []
+    ids_to_use: list[str] = []
 
 class URLData(BaseModel):
     url: str

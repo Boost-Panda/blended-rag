@@ -6,6 +6,7 @@ from fastapi import FastAPI, File, UploadFile, Header, Form, HTTPException
 from gotrue.errors import AuthApiError
 from supabase import create_client, Client
 from fastapi.middleware.cors import CORSMiddleware
+import json
 
 from data_loader import DataLoader
 from data_retriever import DataRetriever
@@ -152,6 +153,13 @@ async def create_embeddings_from_text_no_auth(data: TextData):
     return {"message": "Embeddings created successfully", "success": True}
 
 
+@app.post("/create_embeddings_baygata/")
+async def create_embeddings_from_text_baygata(data: TextData):
+    text = data.text
+    data_loader.save_embeddings_and_documents(text, data.pinecone_index_name, data.elastic_index_name, data.id)
+    return {"message": "Embeddings created successfully", "success": True}
+
+
 # endpoint to create embeddings from the URL
 @app.post("/create_embeddings_from_url/")
 async def create_embeddings_from_url(data: URLData):
@@ -188,6 +196,21 @@ async def query_data_no_auth(data: TextData):
     return {"results": results, "success": True}
 
 
+@app.post("/query_data_baygata/")
+async def query_data_baygata(data: TextData):
+    query = data.text
+    context = data_retriever.blended_retrieval_multiple_results(
+        query=query,
+        pinecone_index_name=data.pinecone_index_name,
+        es_index_name=data.elastic_index_name,
+        ids_to_exclude=data.ids_to_exclude,
+        ids_to_use=data.ids_to_use,
+    )
+    ids = [doc["id"] for doc in context]
+    # results = response_generator.generate_response_baygata(query, context)
+    return {"results": ids, "success": True}
+
+
 # create an endpoint for creating embedding for the image document
 @app.post("/create_embeddings_from_image/")
 async def create_embeddings_from_image(data: ImageDocument):
@@ -217,6 +240,13 @@ async def query_embeddings(data: TextData):
 async def delete_indexes():
     data_loader.delete_indexes()
     return {"message": "Indexes deleted successfully", "success": True}
+
+
+# delete index by name
+@app.get("/delete_index_by_name/")
+async def delete_index_by_name(index_name: str):
+    data_loader.delete_index_by_name(index_name)
+    return {"message": "Index deleted successfully", "success": True}
 
 
 # create all the indexes

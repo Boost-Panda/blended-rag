@@ -7,6 +7,20 @@ from elasticsearch import Elasticsearch, helpers
 from pinecone import Pinecone, ServerlessSpec
 
 
+def create_pinecone_index(pinecone_index_name):
+    pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"), environment="us-west1-gcp")
+    pc.create_index(
+        name=pinecone_index_name,
+        dimension=1536,
+        spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+    )
+
+
+def create_elasticsearch_index(es_index_name):
+    es = Elasticsearch(os.getenv("ELASTICSEARCH_URL"), timeout=30, max_retries=10)
+    es.indices.create(index=es_index_name, ignore=400)
+
+
 class DataLoader:
     def __init__(
         self,
@@ -14,15 +28,13 @@ class DataLoader:
         pinecone_index_name,
         pinecone_api_key,
     ):
-        self.es = Elasticsearch(
-            os.getenv("ELASTICSEARCH_URL"), timeout=30, max_retries=10
-        )
+        self.es = Elasticsearch(os.getenv("ELASTICSEARCH_URL"), timeout=30, max_retries=10)
         self.es_index_name = es_index_name
 
         # check if Elasticsearch index exists, if not create it
         if not self.es.indices.exists(index=self.es_index_name):
             print(f"Creating Elasticsearch index {self.es_index_name}")
-            self.es.indices.create(index=self.es_index_name, ignore=400)
+            create_elasticsearch_index(self.es_index_name)
         else:
             print(f"Elasticsearch index {self.es_index_name} already exists")
 
@@ -31,12 +43,8 @@ class DataLoader:
         self.pc = pc
         self.pinecone_index_name = pinecone_index_name
         if not self.pinecone_index_name in [index.name for index in pc.list_indexes()]:
-            print(f"Pinecone index {self.pinecone_index_name} already exists")
-            pc.create_index(
-                name=pinecone_index_name,
-                dimension=1536,
-                spec=ServerlessSpec(cloud="aws", region="us-east-1"),
-            )
+            print(f"Pinecone index {self.pinecone_index_name} does not exist, creating it")
+            create_pinecone_index(self.pinecone_index_name)
         else:
             print(f"Pinecone index {self.pinecone_index_name} already exists")
 
@@ -67,21 +75,34 @@ class DataLoader:
         return chunks
 
     # Function to read a text file, chunk it, and create embeddings for each chunk
-    def save_embeddings_and_documents(self, text, pinecone_index_name, es_index_name):
-        
+    def save_embeddings_and_documents(self, text, pinecone_index_name, es_index_name, id=uuid.uuid4()):
+        if not pinecone_index_name in [index.name for index in self.pc.list_indexes()]:
+            print(f"Pinecone index {pinecone_index_name} does not exist, creating it")
+            create_pinecone_index(pinecone_index_name)
+        else:
+            print(f"Pinecone index {pinecone_index_name} already exists")
+
+        if not self.es.indices.exists(index=es_index_name):
+            print(f"Elasticsearch index {es_index_name} does not exist, creating it")
+            create_elasticsearch_index(es_index_name)
+        else:
+            print(f"Elasticsearch index {es_index_name} already exists")
+
         if pinecone_index_name != "" and es_index_name != "":
             pinecone_index = self.pc.Index(pinecone_index_name)
         else:
             es_index_name = self.es_index_name
             pinecone_index = self.pinecone_index
-        
+
         chunks = self.chunk_text(text)
         for i, chunk in enumerate(chunks):
 
             # Pinecone Index
             embeddings = self.create_embeddings(chunk)
-            chunk_id = f"chunk-{uuid.uuid4()}"
-            pinecone_index.upsert([(chunk_id, embeddings)])
+            chunk_id = f"chunk-{id}-{i}"
+            pinecone_index.upsert(
+                vectors=[{"id": chunk_id, "values": embeddings, "metadata": {"content": chunk, "id": id}}]
+            )
             print(f"Stored embeddings and documents for chunk {i+1}/{len(chunks)}")
 
             # Elasticsearch index
@@ -103,6 +124,13 @@ class DataLoader:
         self.es.indices.delete(index=self.es_index_name, ignore=[400, 404])
         pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"), environment="us-west1-gcp")
         pc.delete_index(self.pinecone_index_name)
+
+    def delete_index_by_name(self, index_name):
+        """
+        delete a pinecone index by name
+        """
+        pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"), environment="us-west1-gcp")
+        pc.delete_index(index_name)
 
     def create_indexes(self):
         """
